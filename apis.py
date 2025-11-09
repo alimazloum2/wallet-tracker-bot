@@ -41,19 +41,37 @@ def get_eth_balance(address: str) -> Dict[str, any]:
         BlockchainAPIError: If the API request fails
     """
     try:
+        # Debug: Show API key status
+        api_key = Config.ETHERSCAN_API_KEY
+        api_key_preview = f"{api_key[:5]}..." if api_key and len(api_key) > 5 else "NOT_SET"
+
+        print(f"\n{'='*60}")
+        print(f"[ETHERSCAN DEBUG] Fetching balance for: {address}")
+        print(f"[ETHERSCAN DEBUG] API Key: {api_key_preview}")
+        print(f"[ETHERSCAN DEBUG] API URL: {Config.ETHERSCAN_API_URL}")
+
         params = {
             'module': 'account',
             'action': 'balance',
             'address': address,
             'tag': 'latest',
-            'apikey': Config.ETHERSCAN_API_KEY
+            'apikey': api_key
         }
+
+        # Build full URL for debugging
+        param_str = '&'.join([f"{k}={v}" for k, v in params.items() if k != 'apikey'])
+        full_url = f"{Config.ETHERSCAN_API_URL}?{param_str}&apikey={api_key_preview}"
+        print(f"[ETHERSCAN DEBUG] Full URL: {full_url}")
 
         logger.info(f"Fetching ETH balance for address: {address}")
         logger.debug(f"Request URL: {Config.ETHERSCAN_API_URL}")
         logger.debug(f"Request params: {params}")
 
         response = requests.get(Config.ETHERSCAN_API_URL, params=params, timeout=10)
+
+        print(f"[ETHERSCAN DEBUG] Response Status: {response.status_code}")
+        print(f"[ETHERSCAN DEBUG] Response Headers: {dict(response.headers)}")
+        print(f"[ETHERSCAN DEBUG] Response Body: {response.text}")
 
         logger.debug(f"Response status code: {response.status_code}")
         logger.debug(f"Response content: {response.text[:500]}")
@@ -62,19 +80,26 @@ def get_eth_balance(address: str) -> Dict[str, any]:
 
         data = response.json()
 
+        print(f"[ETHERSCAN DEBUG] Parsed JSON: {data}")
+
         # Check for both status codes: '1' for success and '0' for error
         if data.get('status') == '0':
             error_msg = data.get('message', 'Unknown error')
             result = data.get('result', '')
+            print(f"[ETHERSCAN ERROR] Status='0': {error_msg} - {result}")
             logger.error(f"Etherscan API returned error status: {error_msg}, result: {result}")
             raise BlockchainAPIError(f"Etherscan API error: {error_msg} - {result}")
 
         if data.get('status') != '1':
+            print(f"[ETHERSCAN ERROR] Unexpected status: {data.get('status')}")
             logger.error(f"Unexpected Etherscan status: {data.get('status')}, full response: {data}")
             raise BlockchainAPIError(f"Etherscan API unexpected status: {data.get('message', 'Unknown error')}")
 
         balance_wei = data.get('result', '0')
         balance_eth = float(balance_wei) / 1e18
+
+        print(f"[ETHERSCAN SUCCESS] Balance: {balance_eth} ETH ({balance_wei} wei)")
+        print(f"{'='*60}\n")
 
         logger.info(f"Successfully fetched ETH balance: {balance_eth} ETH for {address}")
 
@@ -86,11 +111,20 @@ def get_eth_balance(address: str) -> Dict[str, any]:
         }
 
     except requests.exceptions.RequestException as e:
+        print(f"[ETHERSCAN ERROR] Network error: {e}")
+        print(f"{'='*60}\n")
         logger.error(f"Network error fetching ETH balance for {address}: {e}")
         raise BlockchainAPIError(f"Failed to fetch ETH balance: {str(e)}")
     except (ValueError, KeyError) as e:
+        print(f"[ETHERSCAN ERROR] Parse error: {e}")
+        print(f"{'='*60}\n")
         logger.error(f"Error parsing ETH balance response: {e}")
         raise BlockchainAPIError(f"Failed to parse ETH balance: {str(e)}")
+    except Exception as e:
+        print(f"[ETHERSCAN ERROR] Unexpected error: {e}")
+        print(f"{'='*60}\n")
+        logger.error(f"Unexpected error in get_eth_balance: {e}")
+        raise BlockchainAPIError(f"Unexpected error: {str(e)}")
 
 
 def get_bsc_balance(address: str) -> Dict[str, any]:
@@ -113,19 +147,36 @@ def get_bsc_balance(address: str) -> Dict[str, any]:
         BlockchainAPIError: If the API request fails
     """
     try:
+        # Debug: Show API key status
+        api_key = Config.BSCSCAN_API_KEY
+        api_key_preview = f"{api_key[:5]}..." if api_key and len(api_key) > 5 else "NOT_SET"
+
+        print(f"\n{'='*60}")
+        print(f"[BSCSCAN DEBUG] Fetching balance for: {address}")
+        print(f"[BSCSCAN DEBUG] API Key: {api_key_preview}")
+        print(f"[BSCSCAN DEBUG] API URL: {Config.BSCSCAN_API_URL}")
+
         params = {
             'module': 'account',
             'action': 'balance',
             'address': address,
             'tag': 'latest',
-            'apikey': Config.BSCSCAN_API_KEY
+            'apikey': api_key
         }
+
+        # Build full URL for debugging
+        param_str = '&'.join([f"{k}={v}" for k, v in params.items() if k != 'apikey'])
+        full_url = f"{Config.BSCSCAN_API_URL}?{param_str}&apikey={api_key_preview}"
+        print(f"[BSCSCAN DEBUG] Full URL: {full_url}")
 
         logger.info(f"Fetching BSC balance for address: {address}")
         logger.debug(f"Request URL: {Config.BSCSCAN_API_URL}")
         logger.debug(f"Request params: {params}")
 
         response = requests.get(Config.BSCSCAN_API_URL, params=params, timeout=10)
+
+        print(f"[BSCSCAN DEBUG] Response Status: {response.status_code}")
+        print(f"[BSCSCAN DEBUG] Response Body: {response.text[:500]}")
 
         logger.debug(f"Response status code: {response.status_code}")
         logger.debug(f"Response content: {response.text[:500]}")
@@ -134,19 +185,26 @@ def get_bsc_balance(address: str) -> Dict[str, any]:
 
         data = response.json()
 
+        print(f"[BSCSCAN DEBUG] Parsed JSON: {data}")
+
         # Check for both status codes: '1' for success and '0' for error
         if data.get('status') == '0':
             error_msg = data.get('message', 'Unknown error')
             result = data.get('result', '')
+            print(f"[BSCSCAN ERROR] Status='0': {error_msg} - {result}")
             logger.error(f"BSCScan API returned error status: {error_msg}, result: {result}")
             raise BlockchainAPIError(f"BSCScan API error: {error_msg} - {result}")
 
         if data.get('status') != '1':
+            print(f"[BSCSCAN ERROR] Unexpected status: {data.get('status')}")
             logger.error(f"Unexpected BSCScan status: {data.get('status')}, full response: {data}")
             raise BlockchainAPIError(f"BSCScan API unexpected status: {data.get('message', 'Unknown error')}")
 
         balance_wei = data.get('result', '0')
         balance_bnb = float(balance_wei) / 1e18
+
+        print(f"[BSCSCAN SUCCESS] Balance: {balance_bnb} BNB ({balance_wei} wei)")
+        print(f"{'='*60}\n")
 
         logger.info(f"Successfully fetched BSC balance: {balance_bnb} BNB for {address}")
 
@@ -158,11 +216,20 @@ def get_bsc_balance(address: str) -> Dict[str, any]:
         }
 
     except requests.exceptions.RequestException as e:
+        print(f"[BSCSCAN ERROR] Network error: {e}")
+        print(f"{'='*60}\n")
         logger.error(f"Network error fetching BSC balance for {address}: {e}")
         raise BlockchainAPIError(f"Failed to fetch BSC balance: {str(e)}")
     except (ValueError, KeyError) as e:
+        print(f"[BSCSCAN ERROR] Parse error: {e}")
+        print(f"{'='*60}\n")
         logger.error(f"Error parsing BSC balance response: {e}")
         raise BlockchainAPIError(f"Failed to parse BSC balance: {str(e)}")
+    except Exception as e:
+        print(f"[BSCSCAN ERROR] Unexpected error: {e}")
+        print(f"{'='*60}\n")
+        logger.error(f"Unexpected error in get_bsc_balance: {e}")
+        raise BlockchainAPIError(f"Unexpected error: {str(e)}")
 
 
 def get_sol_balance(address: str) -> Dict[str, any]:
