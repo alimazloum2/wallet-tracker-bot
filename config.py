@@ -22,9 +22,9 @@ class Config:
     SOLSCAN_API_KEY = os.getenv('SOLSCAN_API_KEY')
     BSCSCAN_API_KEY = os.getenv('BSCSCAN_API_KEY')
 
-    # API Endpoints
-    ETHERSCAN_API_URL = 'https://api.etherscan.io/api'
-    BSCSCAN_API_URL = 'https://api.bscscan.com/api'
+    # API Endpoints (V2)
+    ETHERSCAN_API_URL = 'https://api.etherscan.io/v2/api'
+    BSCSCAN_API_URL = 'https://api.bscscan.com/v2/api'
     SOLSCAN_API_URL = 'https://public-api.solscan.io'
 
     @classmethod

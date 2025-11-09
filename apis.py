@@ -51,6 +51,7 @@ def get_eth_balance(address: str) -> Dict[str, any]:
         print(f"[ETHERSCAN DEBUG] API URL: {Config.ETHERSCAN_API_URL}")
 
         params = {
+            'chainid': '1',  # Ethereum mainnet
             'module': 'account',
             'action': 'balance',
             'address': address,
@@ -157,6 +158,7 @@ def get_bsc_balance(address: str) -> Dict[str, any]:
         print(f"[BSCSCAN DEBUG] API URL: {Config.BSCSCAN_API_URL}")
 
         params = {
+            'chainid': '56',  # BSC mainnet
             'module': 'account',
             'action': 'balance',
             'address': address,
