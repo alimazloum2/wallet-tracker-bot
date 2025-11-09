@@ -121,11 +121,12 @@ wallet-tracker-bot/
    - Balance aggregation
 
 3. **apis.py**: Blockchain API integration
-   - Etherscan API for Ethereum
+   - Etherscan API for Ethereum (V2 endpoint)
    - BSCScan API for Binance Smart Chain
-   - Solscan API for Solana
-   - Address validation
-   - Error handling
+   - Solana JSON-RPC API (primary) with Solscan fallback
+   - Enhanced address validation with Base58 checking
+   - Comprehensive error handling with detailed logging
+   - Automatic fallback mechanisms
 
 4. **config.py**: Configuration management
    - Environment variable loading
@@ -134,9 +135,18 @@ wallet-tracker-bot/
 
 ## API Endpoints Used
 
-- **Etherscan**: `https://api.etherscan.io/api`
-- **BSCScan**: `https://api.bscscan.com/api`
-- **Solscan**: `https://public-api.solscan.io`
+- **Etherscan**: `https://api.etherscan.io/api` (V2 API with proper error handling)
+- **BSCScan**: `https://api.bscscan.com/api` (V2 API with proper error handling)
+- **Solana RPC**: `https://api.mainnet-beta.solana.com` (Primary - JSON-RPC 2.0)
+- **Solscan**: `https://public-api.solscan.io` (Fallback for Solana)
+
+### API Features
+
+- **Detailed Logging**: All API calls are logged with request/response details for debugging
+- **Error Status Handling**: Properly handles both '0' (error) and '1' (success) status codes from Etherscan/BSCScan
+- **Dual Solana Support**: Uses reliable Solana RPC API as primary, with Solscan as fallback
+- **Address Validation**: Validates address format before making API calls (hex for ETH/BSC, Base58 for SOL)
+- **Timeout Protection**: All API calls have 10-second timeout to prevent hanging
 
 ## Error Handling
 
