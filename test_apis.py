@@ -2,10 +2,13 @@
 """
 Test script for blockchain API calls.
 Run this to test if your API keys are working correctly.
+
+NOTE: Tests run with 3-second delays between API calls to avoid rate limiting.
 """
 
 import sys
-from apis import get_balance, validate_address
+import time
+from apis import get_balance, validate_address, BlockchainAPIError
 from config import Config
 
 def test_address_validation():
@@ -65,7 +68,7 @@ def test_api_keys():
 
 
 def test_eth_balance():
-    """Test Ethereum balance fetching."""
+    """Test Ethereum balance fetching with retry logic."""
     print("\n" + "="*60)
     print("TESTING ETHEREUM BALANCE FETCH")
     print("="*60)
@@ -74,20 +77,46 @@ def test_eth_balance():
     test_address = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
 
     print(f"\nTesting with address: {test_address}")
+    print("Note: Adding 2-second delay to avoid rate limiting...")
+    time.sleep(2)
 
-    result = get_balance(test_address, 'ETH')
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            print(f"\nAttempt {attempt}/{max_retries}...")
+            result = get_balance(test_address, 'ETH')
 
-    if result:
-        print(f"\n✓ SUCCESS!")
-        print(f"Address: {result['address']}")
-        print(f"Balance: {result['balance']} ETH")
-        print(f"Balance (wei): {result['balance_wei']}")
-    else:
-        print(f"\n✗ FAILED to fetch ETH balance")
+            if result:
+                print(f"\n✓ SUCCESS!")
+                print(f"Address: {result['address']}")
+                print(f"Balance: {result['balance']} ETH")
+                print(f"Balance (wei): {result['balance_wei']}")
+                return True
+            else:
+                print(f"\n✗ ATTEMPT {attempt} FAILED: get_balance returned None")
+                if attempt < max_retries:
+                    wait_time = 2 ** attempt  # Exponential backoff: 2, 4, 8 seconds
+                    print(f"Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
+        except BlockchainAPIError as e:
+            print(f"\n✗ ATTEMPT {attempt} FAILED: {e}")
+            if attempt < max_retries:
+                wait_time = 2 ** attempt
+                print(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+        except Exception as e:
+            print(f"\n✗ ATTEMPT {attempt} FAILED: Unexpected error: {e}")
+            if attempt < max_retries:
+                wait_time = 2 ** attempt
+                print(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+
+    print(f"\n✗ FAILED: All {max_retries} attempts exhausted for ETH balance")
+    return False
 
 
 def test_sol_balance():
-    """Test Solana balance fetching."""
+    """Test Solana balance fetching with retry logic."""
     print("\n" + "="*60)
     print("TESTING SOLANA BALANCE FETCH")
     print("="*60)
@@ -95,20 +124,46 @@ def test_sol_balance():
     test_address = "5Ey4FfQYuHV5ir9o4vVAGM4tmMsBE1omc6uHw8VuccF4"
 
     print(f"\nTesting with address: {test_address}")
+    print("Note: Adding 2-second delay to avoid rate limiting...")
+    time.sleep(2)
 
-    result = get_balance(test_address, 'SOL')
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            print(f"\nAttempt {attempt}/{max_retries}...")
+            result = get_balance(test_address, 'SOL')
 
-    if result:
-        print(f"\n✓ SUCCESS!")
-        print(f"Address: {result['address']}")
-        print(f"Balance: {result['balance']} SOL")
-        print(f"Balance (lamports): {result['balance_lamports']}")
-    else:
-        print(f"\n✗ FAILED to fetch SOL balance")
+            if result:
+                print(f"\n✓ SUCCESS!")
+                print(f"Address: {result['address']}")
+                print(f"Balance: {result['balance']} SOL")
+                print(f"Balance (lamports): {result['balance_lamports']}")
+                return True
+            else:
+                print(f"\n✗ ATTEMPT {attempt} FAILED: get_balance returned None")
+                if attempt < max_retries:
+                    wait_time = 2 ** attempt
+                    print(f"Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
+        except BlockchainAPIError as e:
+            print(f"\n✗ ATTEMPT {attempt} FAILED: {e}")
+            if attempt < max_retries:
+                wait_time = 2 ** attempt
+                print(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+        except Exception as e:
+            print(f"\n✗ ATTEMPT {attempt} FAILED: Unexpected error: {e}")
+            if attempt < max_retries:
+                wait_time = 2 ** attempt
+                print(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+
+    print(f"\n✗ FAILED: All {max_retries} attempts exhausted for SOL balance")
+    return False
 
 
 def test_bsc_balance():
-    """Test BSC balance fetching."""
+    """Test BSC balance fetching with retry logic."""
     print("\n" + "="*60)
     print("TESTING BSC BALANCE FETCH")
     print("="*60)
@@ -117,16 +172,42 @@ def test_bsc_balance():
     test_address = "0xF977814e90dA44bFA03b6295A0616a897441aceC"
 
     print(f"\nTesting with address: {test_address}")
+    print("Note: Adding 2-second delay to avoid rate limiting...")
+    time.sleep(2)
 
-    result = get_balance(test_address, 'BSC')
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            print(f"\nAttempt {attempt}/{max_retries}...")
+            result = get_balance(test_address, 'BSC')
 
-    if result:
-        print(f"\n✓ SUCCESS!")
-        print(f"Address: {result['address']}")
-        print(f"Balance: {result['balance']} BNB")
-        print(f"Balance (wei): {result['balance_wei']}")
-    else:
-        print(f"\n✗ FAILED to fetch BSC balance")
+            if result:
+                print(f"\n✓ SUCCESS!")
+                print(f"Address: {result['address']}")
+                print(f"Balance: {result['balance']} BNB")
+                print(f"Balance (wei): {result['balance_wei']}")
+                return True
+            else:
+                print(f"\n✗ ATTEMPT {attempt} FAILED: get_balance returned None")
+                if attempt < max_retries:
+                    wait_time = 2 ** attempt
+                    print(f"Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
+        except BlockchainAPIError as e:
+            print(f"\n✗ ATTEMPT {attempt} FAILED: {e}")
+            if attempt < max_retries:
+                wait_time = 2 ** attempt
+                print(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+        except Exception as e:
+            print(f"\n✗ ATTEMPT {attempt} FAILED: Unexpected error: {e}")
+            if attempt < max_retries:
+                wait_time = 2 ** attempt
+                print(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+
+    print(f"\n✗ FAILED: All {max_retries} attempts exhausted for BSC balance")
+    return False
 
 
 def main():
@@ -157,9 +238,30 @@ def main():
         elif choice == '3':
             test_sol_balance()
         else:
-            test_eth_balance()
-            test_bsc_balance()
-            test_sol_balance()
+            # Run all tests sequentially with delays to avoid rate limiting
+            print("\n⏱️  Running all tests with delays between each blockchain...")
+            print("This will take approximately 20-30 seconds to complete.\n")
+
+            eth_success = test_eth_balance()
+            print("\n⏱️  Waiting 3 seconds before next test...")
+            time.sleep(3)
+
+            bsc_success = test_bsc_balance()
+            print("\n⏱️  Waiting 3 seconds before next test...")
+            time.sleep(3)
+
+            sol_success = test_sol_balance()
+
+            # Summary
+            print("\n" + "="*60)
+            print("TEST SUMMARY")
+            print("="*60)
+            print(f"ETH: {'✓ PASSED' if eth_success else '✗ FAILED'}")
+            print(f"BSC: {'✓ PASSED' if bsc_success else '✗ FAILED'}")
+            print(f"SOL: {'✓ PASSED' if sol_success else '✗ FAILED'}")
+            total = sum([eth_success, bsc_success, sol_success])
+            print(f"\nTotal: {total}/3 tests passed")
+            print("="*60)
 
         print("\n" + "="*60)
         print("TESTS COMPLETED")
