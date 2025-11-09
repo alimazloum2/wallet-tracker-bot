@@ -23,8 +23,9 @@ class Config:
     BSCSCAN_API_KEY = os.getenv('BSCSCAN_API_KEY')
 
     # API Endpoints (V2)
+    # Note: BSC now uses Etherscan V2 API with chainid=56
     ETHERSCAN_API_URL = 'https://api.etherscan.io/v2/api'
-    BSCSCAN_API_URL = 'https://api.bscscan.com/v2/api'
+    BSCSCAN_API_URL = 'https://api.etherscan.io/v2/api'  # Same as Etherscan, uses chainid=56
     SOLSCAN_API_URL = 'https://public-api.solscan.io'
 
     @classmethod

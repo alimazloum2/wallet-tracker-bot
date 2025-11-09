@@ -136,9 +136,11 @@ wallet-tracker-bot/
 ## API Endpoints Used
 
 - **Etherscan**: `https://api.etherscan.io/v2/api` (V2 API with chainid=1 for Ethereum mainnet)
-- **BSCScan**: `https://api.bscscan.com/v2/api` (V2 API with chainid=56 for BSC mainnet)
+- **BSCScan**: `https://api.etherscan.io/v2/api` (V2 API with chainid=56 for BSC mainnet - uses Etherscan endpoint)
 - **Solana RPC**: `https://api.mainnet-beta.solana.com` (Primary - JSON-RPC 2.0)
 - **Solscan**: `https://public-api.solscan.io` (Fallback for Solana)
+
+**Note:** BSC now uses the Etherscan V2 API infrastructure with `chainid=56` parameter to distinguish it from Ethereum mainnet.
 
 ### API Features
 
