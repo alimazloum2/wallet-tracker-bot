@@ -256,7 +256,7 @@ async def check_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     for balance in balances:
         status_icon = "✅" if balance['status'] == 'success' else "❌"
         message += f"{status_icon} **{balance['label']}**\n"
-        message += f"   • Address: `{balance['address'][:10]}...{balance['address'][-8:]}`\n"
+        message += f"   • Address: `{balance['address']}`\n"
         message += f"   • Blockchain: {balance['blockchain']}\n"
 
         if balance['status'] == 'success' and balance['balance'] is not None:
