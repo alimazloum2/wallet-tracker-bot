@@ -86,12 +86,17 @@ class WalletTracker:
         if not validate_address(address, blockchain):
             raise ValueError(f"Invalid {blockchain} address format")
 
-        # Initialize user's wallet list if not exists
+        # Initialize user's data structure if not exists
         if user_id_str not in self.wallets:
-            self.wallets[user_id_str] = []
+            self.wallets[user_id_str] = {'wallets': [], 'currency': 'USD'}
+        elif isinstance(self.wallets[user_id_str], list):
+            # Migrate old format
+            self._migrate_user_data(user_id_str)
+
+        user_wallets = self.wallets[user_id_str]['wallets']
 
         # Check if wallet already exists
-        for wallet in self.wallets[user_id_str]:
+        for wallet in user_wallets:
             if wallet['address'] == address and wallet['blockchain'] == blockchain:
                 return {
                     'success': False,
@@ -106,7 +111,7 @@ class WalletTracker:
             'added_at': datetime.now().isoformat()
         }
 
-        self.wallets[user_id_str].append(wallet_data)
+        user_wallets.append(wallet_data)
         self._save_wallets()
 
         logger.info(f"Added wallet {address} ({blockchain}) for user {user_id}")
@@ -137,14 +142,20 @@ class WalletTracker:
                 'message': 'No wallets tracked for this user'
             }
 
+        # Ensure new format
+        if isinstance(self.wallets[user_id_str], list):
+            self._migrate_user_data(user_id_str)
+
+        user_wallets = self.wallets[user_id_str]['wallets']
+
         # Find and remove wallet
-        initial_count = len(self.wallets[user_id_str])
-        self.wallets[user_id_str] = [
-            w for w in self.wallets[user_id_str]
+        initial_count = len(user_wallets)
+        self.wallets[user_id_str]['wallets'] = [
+            w for w in user_wallets
             if not (w['address'] == address and w['blockchain'] == blockchain)
         ]
 
-        if len(self.wallets[user_id_str]) == initial_count:
+        if len(self.wallets[user_id_str]['wallets']) == initial_count:
             return {
                 'success': False,
                 'message': f'Wallet not found: {address} ({blockchain})'
@@ -169,7 +180,15 @@ class WalletTracker:
             List of wallet dictionaries
         """
         user_id_str = str(user_id)
-        return self.wallets.get(user_id_str, [])
+
+        if user_id_str not in self.wallets:
+            return []
+
+        # Handle both old (list) and new (dict) formats
+        if isinstance(self.wallets[user_id_str], list):
+            self._migrate_user_data(user_id_str)
+
+        return self.wallets[user_id_str].get('wallets', [])
 
     def get_wallet_balance(self, address: str, blockchain: str) -> Optional[Dict[str, any]]:
         """
@@ -254,3 +273,74 @@ class WalletTracker:
             Number of tracked wallets
         """
         return len(self.get_user_wallets(user_id))
+
+    def get_user_currency(self, user_id: int) -> str:
+        """
+        Get the preferred fiat currency for a user.
+
+        Args:
+            user_id: Telegram user ID
+
+        Returns:
+            Currency code ('USD' or 'CAD'), defaults to 'USD'
+        """
+        user_id_str = str(user_id)
+
+        if user_id_str in self.wallets:
+            # Check if user data is a dict (new format with currency)
+            if isinstance(self.wallets[user_id_str], dict):
+                return self.wallets[user_id_str].get('currency', 'USD')
+            # Old format (list of wallets) - migrate and return default
+            else:
+                self._migrate_user_data(user_id_str)
+                return 'USD'
+
+        return 'USD'
+
+    def set_user_currency(self, user_id: int, currency: str) -> bool:
+        """
+        Set the preferred fiat currency for a user.
+
+        Args:
+            user_id: Telegram user ID
+            currency: Currency code ('USD' or 'CAD')
+
+        Returns:
+            True if successful, False otherwise
+        """
+        user_id_str = str(user_id)
+        currency = currency.upper()
+
+        if currency not in ['USD', 'CAD']:
+            logger.error(f"Invalid currency: {currency}")
+            return False
+
+        # Ensure user data structure exists
+        if user_id_str not in self.wallets:
+            self.wallets[user_id_str] = {'wallets': [], 'currency': currency}
+        elif isinstance(self.wallets[user_id_str], list):
+            # Migrate old format
+            self._migrate_user_data(user_id_str)
+            self.wallets[user_id_str]['currency'] = currency
+        else:
+            self.wallets[user_id_str]['currency'] = currency
+
+        self._save_wallets()
+        logger.info(f"Set currency to {currency} for user {user_id}")
+        return True
+
+    def _migrate_user_data(self, user_id_str: str):
+        """
+        Migrate user data from old format (list) to new format (dict with currency).
+
+        Args:
+            user_id_str: User ID as string
+        """
+        if isinstance(self.wallets[user_id_str], list):
+            old_wallets = self.wallets[user_id_str]
+            self.wallets[user_id_str] = {
+                'wallets': old_wallets,
+                'currency': 'USD'
+            }
+            self._save_wallets()
+            logger.info(f"Migrated user data for {user_id_str}")

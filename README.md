@@ -6,11 +6,14 @@ A production-ready Telegram bot that tracks cryptocurrency wallet balances acros
 
 - **Multi-Blockchain Support**: Track wallets on Ethereum (ETH), Binance Smart Chain (BSC), and Solana (SOL)
 - **Real-Time Balance Tracking**: Fetch current balances using blockchain explorer APIs
+- **Multi-Currency Support**: View balances in USD or CAD with real-time conversion
+- **Price Integration**: Automatic cryptocurrency price fetching via CoinGecko API
 - **User-Friendly Interface**: Interactive Telegram bot with inline keyboards
-- **Persistent Storage**: Wallet data is saved and persists between bot restarts
+- **Persistent Storage**: Wallet data and currency preferences saved between bot restarts
 - **Error Handling**: Robust error handling and validation
 - **Custom Labels**: Add custom labels to identify your wallets
 - **Multi-Wallet Support**: Track unlimited wallets across different blockchains
+- **Portfolio Value**: See your total portfolio value in your preferred fiat currency
 
 ## Prerequisites
 
@@ -74,7 +77,8 @@ python main.py
 - `/help` - Display help information and available commands
 - `/add` - Add a new wallet to track
 - `/list` - List all your tracked wallets
-- `/balance` - Check current balances for all wallets
+- `/balance` - Check current balances for all wallets with fiat values
+- `/currency` - Change your preferred currency (USD/CAD)
 - `/remove` - Remove a wallet from tracking
 
 ### Adding a Wallet
@@ -88,22 +92,31 @@ python main.py
 ### Checking Balances
 
 1. Send `/balance` to the bot
-2. The bot will fetch real-time balances for all your tracked wallets
-3. View individual wallet balances and total balance per blockchain
+2. The bot will fetch real-time balances and current cryptocurrency prices
+3. View individual wallet balances with fiat values (USD or CAD)
+4. See your total portfolio value in your preferred currency
+
+### Changing Currency Preference
+
+1. Send `/currency` to the bot
+2. Select USD or CAD
+3. All future balance displays will show values in your selected currency
+4. Currency preference is saved automatically
 
 ## Project Structure
 
 ```
 wallet-tracker-bot/
 ├── main.py              # Bot entry point and command handlers
-├── wallet_tracker.py    # WalletTracker class for managing wallets
+├── wallet_tracker.py    # WalletTracker class for managing wallets and preferences
 ├── apis.py              # Blockchain API integration functions
+├── price_service.py     # Cryptocurrency price fetching (CoinGecko API)
 ├── config.py            # Configuration and environment variable loading
 ├── requirements.txt     # Python dependencies
 ├── .env.example         # Environment variable template
 ├── .gitignore          # Git ignore rules
 ├── README.md           # This file
-└── wallets.json        # Wallet data storage (created automatically)
+└── wallets.json        # Wallet and user preference storage (created automatically)
 ```
 
 ## Architecture
@@ -113,14 +126,22 @@ wallet-tracker-bot/
 1. **main.py**: Telegram bot interface
    - Command handlers for user interactions
    - Conversation flow for adding wallets
+   - Currency preference management
    - Inline keyboard menus
 
-2. **wallet_tracker.py**: Wallet management
+2. **wallet_tracker.py**: Wallet and user preference management
    - Add/remove wallets
-   - Persistent JSON storage
+   - User currency preference (USD/CAD)
+   - Persistent JSON storage with automatic migration
    - Balance aggregation
 
-3. **apis.py**: Blockchain API integration
+3. **price_service.py**: Cryptocurrency price integration
+   - Real-time price fetching via CoinGecko API (free, no API key)
+   - Multi-currency support (USD, CAD)
+   - Fiat value calculation and formatting
+   - Portfolio value aggregation
+
+4. **apis.py**: Blockchain API integration
    - Etherscan API for Ethereum (V2 endpoint)
    - BSCScan API for Binance Smart Chain
    - Solana JSON-RPC API (primary) with Solscan fallback
@@ -128,7 +149,7 @@ wallet-tracker-bot/
    - Comprehensive error handling with detailed logging
    - Automatic fallback mechanisms
 
-4. **config.py**: Configuration management
+5. **config.py**: Configuration management
    - Environment variable loading
    - API endpoint configuration
    - Configuration validation
@@ -139,8 +160,11 @@ wallet-tracker-bot/
 - **BSCScan**: `https://api.etherscan.io/v2/api` (V2 API with chainid=56 for BSC mainnet - uses Etherscan endpoint)
 - **Solana RPC**: `https://api.mainnet-beta.solana.com` (Primary - JSON-RPC 2.0)
 - **Solscan**: `https://public-api.solscan.io` (Fallback for Solana)
+- **CoinGecko**: `https://api.coingecko.com/api/v3/simple/price` (Free price API - no key required)
 
-**Note:** BSC now uses the Etherscan V2 API infrastructure with `chainid=56` parameter to distinguish it from Ethereum mainnet.
+**Notes:**
+- BSC uses the Etherscan V2 API infrastructure with `chainid=56` parameter to distinguish it from Ethereum mainnet
+- CoinGecko API is free and requires no API key for basic price queries
 
 ### API Features
 
