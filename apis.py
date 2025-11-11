@@ -178,14 +178,39 @@ def get_bsc_balance(address: str) -> Dict[str, any]:
                 logger.info(f"Retrying BSC balance fetch (attempt {attempt + 1}/{max_retries}) after {delay}s")
                 time.sleep(delay)
 
-            # Initialize Web3 with Ankr RPC
-            w3 = Web3(Web3.HTTPProvider(ankr_rpc_url, request_kwargs={'timeout': 10}))
+            # Method 1: Try Web3 library first
+            try:
+                w3 = Web3(Web3.HTTPProvider(ankr_rpc_url, request_kwargs={'timeout': 15}))
+                checksum_address = Web3.to_checksum_address(address)
+                balance_wei = w3.eth.get_balance(checksum_address)
+                print(f"[BSC RPC DEBUG] Web3 method succeeded")
+            except Exception as web3_error:
+                # Method 2: Fallback to direct JSON-RPC call (more reliable on Windows)
+                print(f"[BSC RPC DEBUG] Web3 failed ({web3_error}), trying direct JSON-RPC...")
+                logger.warning(f"Web3 failed, using direct JSON-RPC: {web3_error}")
 
-            print(f"[BSC RPC DEBUG] Initialized Web3 provider, fetching balance...")
+                payload = {
+                    "jsonrpc": "2.0",
+                    "method": "eth_getBalance",
+                    "params": [address, "latest"],
+                    "id": 1
+                }
 
-            # Get balance in Wei (Web3 will handle connection automatically)
-            checksum_address = Web3.to_checksum_address(address)
-            balance_wei = w3.eth.get_balance(checksum_address)
+                response = requests.post(ankr_rpc_url, json=payload, timeout=15)
+                response.raise_for_status()
+
+                data = response.json()
+
+                if 'error' in data:
+                    raise BlockchainAPIError(f"RPC error: {data['error']}")
+
+                if 'result' not in data:
+                    raise BlockchainAPIError(f"Unexpected response: {data}")
+
+                # Convert hex to int
+                balance_wei = int(data['result'], 16)
+                print(f"[BSC RPC DEBUG] Direct JSON-RPC method succeeded")
+
             balance_bnb = float(balance_wei) / 1e18
 
             print(f"[BSC RPC SUCCESS] Balance: {balance_bnb} BNB ({balance_wei} wei)")
