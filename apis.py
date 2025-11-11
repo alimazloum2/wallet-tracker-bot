@@ -181,14 +181,11 @@ def get_bsc_balance(address: str) -> Dict[str, any]:
             # Initialize Web3 with Ankr RPC
             w3 = Web3(Web3.HTTPProvider(ankr_rpc_url, request_kwargs={'timeout': 10}))
 
-            # Check connection
-            if not w3.is_connected():
-                raise BlockchainAPIError("Failed to connect to BSC RPC")
+            print(f"[BSC RPC DEBUG] Initialized Web3 provider, fetching balance...")
 
-            print(f"[BSC RPC DEBUG] Connected to BSC RPC, fetching balance...")
-
-            # Get balance in Wei
-            balance_wei = w3.eth.get_balance(Web3.to_checksum_address(address))
+            # Get balance in Wei (Web3 will handle connection automatically)
+            checksum_address = Web3.to_checksum_address(address)
+            balance_wei = w3.eth.get_balance(checksum_address)
             balance_bnb = float(balance_wei) / 1e18
 
             print(f"[BSC RPC SUCCESS] Balance: {balance_bnb} BNB ({balance_wei} wei)")
