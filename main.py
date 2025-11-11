@@ -31,7 +31,7 @@ tracker = WalletTracker()
 
 # Conversation states
 WAITING_FOR_ADDRESS, WAITING_FOR_BLOCKCHAIN, WAITING_FOR_LABEL = range(3)
-WAITING_FOR_GENERATE_BLOCKCHAIN, WAITING_FOR_ADD_GENERATED = range(3, 5)
+WAITING_FOR_GENERATE_BLOCKCHAIN, WAITING_FOR_READY_CONFIRMATION, WAITING_FOR_WRITTEN_CONFIRMATION, WAITING_FOR_ADD_GENERATED = range(3, 7)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -453,7 +453,7 @@ async def generate_wallet_start(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def receive_generate_blockchain(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
-    Receive blockchain selection and generate wallet(s).
+    Receive blockchain selection and show preparation warning.
     """
     query = update.callback_query
     await query.answer()
@@ -463,9 +463,57 @@ async def receive_generate_blockchain(update: Update, context: ContextTypes.DEFA
         return ConversationHandler.END
 
     selected_chain = query.data.replace('generate_', '')
+    context.user_data['selected_chain'] = selected_chain
+
+    # Show preparation warning BEFORE generating
+    keyboard = [
+        [InlineKeyboardButton("✅ I'm Ready - Show My Wallet", callback_data='ready_to_see')],
+        [InlineKeyboardButton("❌ Cancel", callback_data='cancel_generate')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    chain_name = "Multi-Chain" if selected_chain == 'ALL' else selected_chain
+
+    await query.edit_message_text(
+        f"🔐 **Generating {chain_name} Wallet**\n\n"
+        "⚠️ **CRITICAL: READ BEFORE PROCEEDING** ⚠️\n\n"
+        "📝 **What You Need:**\n"
+        "1. **Pen and paper** (NOT digital notes!)\n"
+        "2. A **safe place** to store the paper\n"
+        "3. **5 minutes** of uninterrupted time\n\n"
+        "⚠️ **Important Rules:**\n"
+        "• Your mnemonic will be shown **ONLY ONCE**\n"
+        "• You **MUST write it down** on paper\n"
+        "• **DO NOT screenshot** or save digitally\n"
+        "• **DO NOT share** with anyone, ever\n"
+        "• If you lose it, **your funds are gone forever**\n\n"
+        "🔒 **This message will disappear** after you confirm!\n\n"
+        "Are you ready with pen and paper?",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+    return WAITING_FOR_READY_CONFIRMATION
+
+
+async def confirm_ready_to_see_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    User confirmed they're ready - now generate and show the wallet.
+    """
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == 'cancel_generate':
+        await query.edit_message_text("Wallet generation cancelled. Your security is important!")
+        context.user_data.clear()
+        return ConversationHandler.END
+
+    selected_chain = context.user_data.get('selected_chain')
+    if not selected_chain:
+        await query.edit_message_text("❌ Error: Session expired. Please use /generate again.")
+        return ConversationHandler.END
 
     # Show generating message
-    await query.edit_message_text("🔄 Generating secure wallet(s)... Please wait.")
+    await query.edit_message_text("🔄 Generating your secure wallet... Please wait.")
 
     try:
         # Generate multi-chain wallet
@@ -525,40 +573,34 @@ async def receive_generate_blockchain(update: Update, context: ContextTypes.DEFA
             }
 
         message += "\n" + "="*40 + "\n"
-        message += "📋 **Next Steps:**\n"
-        message += "1. Save your mnemonic in a safe place\n"
-        message += "2. Never share it with anyone\n"
-        message += "3. Add wallet(s) to tracking to monitor balance\n\n"
+        message += "⚠️ **WRITE THIS DOWN NOW!** ⚠️\n"
+        message += "📝 Copy the mnemonic to paper carefully\n"
+        message += "✅ Double-check every word\n"
+        message += "🔒 Store in a secure location\n\n"
 
         # Send the wallet information
         await query.edit_message_text(message, parse_mode='Markdown')
 
-        # Ask if they want to add to tracking
-        if selected_chain != 'ALL':
-            keyboard = [
-                [InlineKeyboardButton("✅ Add to Tracking", callback_data='add_generated_yes')],
-                [InlineKeyboardButton("❌ No, Just Generate", callback_data='add_generated_no')]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
+        # Ask for written confirmation
+        keyboard = [
+            [InlineKeyboardButton("✅ I Have Written It Down", callback_data='written_confirmed')],
+            [InlineKeyboardButton("📝 I Need More Time", callback_data='need_more_time')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
 
-            await query.message.reply_text(
-                "Would you like to add this wallet to your tracking list?",
-                reply_markup=reply_markup
-            )
-            return WAITING_FOR_ADD_GENERATED
-        else:
-            # For multi-chain, ask which one(s) to add
-            keyboard = []
-            for chain in ['BTC', 'ETH', 'BSC', 'SOL']:
-                keyboard.append([InlineKeyboardButton(f"Add {chain}", callback_data=f'add_multi_{chain}')])
-            keyboard.append([InlineKeyboardButton("Done", callback_data='add_generated_no')])
-            reply_markup = InlineKeyboardMarkup(keyboard)
-
-            await query.message.reply_text(
-                "Select which wallet(s) you want to add to tracking:",
-                reply_markup=reply_markup
-            )
-            return WAITING_FOR_ADD_GENERATED
+        await query.message.reply_text(
+            "⚠️ **IMPORTANT CONFIRMATION** ⚠️\n\n"
+            "Have you written down your mnemonic on paper?\n\n"
+            "**Before clicking 'I Have Written It Down':**\n"
+            "✓ Check you wrote all 12 words correctly\n"
+            "✓ Check the spelling of each word\n"
+            "✓ Check you wrote them in the correct order\n"
+            "✓ Store the paper in a safe place\n\n"
+            "🔒 Once you confirm, we'll ask if you want to track this wallet.",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        return WAITING_FOR_WRITTEN_CONFIRMATION
 
     except Exception as e:
         logger.error(f"Error generating wallet: {e}")
@@ -567,6 +609,69 @@ async def receive_generate_blockchain(update: Update, context: ContextTypes.DEFA
             "Please try again with /generate"
         )
         return ConversationHandler.END
+
+
+async def confirm_written_down(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Handle confirmation that user has written down the mnemonic.
+    """
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == 'need_more_time':
+        await query.edit_message_text(
+            "✅ Take your time!\n\n"
+            "Make sure you've written down:\n"
+            "• All 12 words of your mnemonic\n"
+            "• In the correct order\n"
+            "• With correct spelling\n\n"
+            "Scroll up to see your wallet information again.\n"
+            "When you're ready, use /generate to create a new wallet\n"
+            "or /add to track an existing wallet."
+        )
+        context.user_data.clear()
+        return ConversationHandler.END
+
+    # User confirmed they wrote it down
+    generated_wallet = context.user_data.get('generated_wallet')
+    if not generated_wallet:
+        await query.edit_message_text("❌ Session expired. Please use /generate again.")
+        return ConversationHandler.END
+
+    selected_chain = generated_wallet.get('selected_chain')
+
+    # Ask if they want to add to tracking
+    if selected_chain != 'ALL':
+        keyboard = [
+            [InlineKeyboardButton("✅ Yes, Add to Tracking", callback_data='add_generated_yes')],
+            [InlineKeyboardButton("❌ No Thanks", callback_data='add_generated_no')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await query.edit_message_text(
+            "✅ **Great! Your mnemonic is safely written down.**\n\n"
+            f"Would you like to add your {selected_chain} wallet to tracking?\n\n"
+            "This will let you check the balance easily with /balance command.",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        return WAITING_FOR_ADD_GENERATED
+    else:
+        # For multi-chain, ask which one(s) to add
+        keyboard = []
+        for chain in ['BTC', 'ETH', 'BSC', 'SOL']:
+            keyboard.append([InlineKeyboardButton(f"Add {chain} to Tracking", callback_data=f'add_multi_{chain}')])
+        keyboard.append([InlineKeyboardButton("✅ Done - Don't Add Any", callback_data='add_generated_no')])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await query.edit_message_text(
+            "✅ **Great! Your mnemonic is safely written down.**\n\n"
+            "Select which wallet(s) you want to add to tracking:\n"
+            "(You can track them all or just some)",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        return WAITING_FOR_ADD_GENERATED
 
 
 async def receive_add_generated(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -669,6 +774,8 @@ def main() -> None:
         entry_points=[CommandHandler('generate', generate_wallet_start)],
         states={
             WAITING_FOR_GENERATE_BLOCKCHAIN: [CallbackQueryHandler(receive_generate_blockchain, pattern='^generate_|^cancel_generate')],
+            WAITING_FOR_READY_CONFIRMATION: [CallbackQueryHandler(confirm_ready_to_see_wallet, pattern='^ready_to_see|^cancel_generate')],
+            WAITING_FOR_WRITTEN_CONFIRMATION: [CallbackQueryHandler(confirm_written_down, pattern='^written_confirmed|^need_more_time')],
             WAITING_FOR_ADD_GENERATED: [CallbackQueryHandler(receive_add_generated, pattern='^add_generated_|^add_multi_')],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
