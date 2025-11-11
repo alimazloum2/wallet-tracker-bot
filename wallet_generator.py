@@ -19,9 +19,11 @@ import logging
 # External dependencies
 from mnemonic import Mnemonic
 from eth_account import Account
+from eth_account.hdaccount import generate_mnemonic as eth_generate_mnemonic, seed_from_mnemonic, key_from_seed, ETHEREUM_DEFAULT_PATH
 from solders.keypair import Keypair  # type: ignore
 from solders.pubkey import Pubkey  # type: ignore
 import base58
+from bip32 import BIP32
 
 # Configure logging
 logging.basicConfig(
@@ -47,9 +49,7 @@ class WalletGeneratorError(Exception):
 def _derive_key_from_path(seed: bytes, path: str) -> bytes:
     """
     Derive a private key from seed using BIP44 derivation path.
-
-    Implements simplified BIP32 key derivation for educational purposes.
-    For production use, consider using a full BIP32 library.
+    Uses proper BIP32 implementation.
 
     Args:
         seed: BIP39 seed bytes
@@ -58,34 +58,10 @@ def _derive_key_from_path(seed: bytes, path: str) -> bytes:
     Returns:
         32-byte private key
     """
-    # Parse derivation path
-    path_parts = path.split('/')[1:]  # Skip 'm'
-
-    # Start with master key
-    master_key = hmac.new(b"Bitcoin seed", seed, hashlib.sha512).digest()
-    key = master_key[:32]
-    chain_code = master_key[32:]
-
-    # Derive through each level
-    for level in path_parts:
-        # Check if hardened (ends with ')
-        hardened = level.endswith("'")
-        index = int(level.rstrip("'"))
-
-        if hardened:
-            index += 0x80000000  # Hardened key
-            data = b'\x00' + key + index.to_bytes(4, 'big')
-        else:
-            # For non-hardened, we'd need the public key
-            # For simplicity, we'll use a modified approach
-            data = key + index.to_bytes(4, 'big')
-
-        # Derive new key
-        i = hmac.new(chain_code, data, hashlib.sha512).digest()
-        key = i[:32]
-        chain_code = i[32:]
-
-    return key
+    # Use proper BIP32 library
+    bip32 = BIP32.from_seed(seed)
+    derived_key = bip32.get_privkey_from_path(path)
+    return derived_key
 
 
 def generate_mnemonic(word_count: int = 12) -> str:
