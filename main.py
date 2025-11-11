@@ -17,6 +17,7 @@ from telegram.ext import (
 from config import Config
 from wallet_tracker import WalletTracker
 from price_service import format_fiat_value, get_total_value_in_fiat
+from wallet_generator import generate_multi_chain_wallet
 
 # Configure logging
 logging.basicConfig(
@@ -30,6 +31,7 @@ tracker = WalletTracker()
 
 # Conversation states
 WAITING_FOR_ADDRESS, WAITING_FOR_BLOCKCHAIN, WAITING_FOR_LABEL = range(3)
+WAITING_FOR_GENERATE_BLOCKCHAIN, WAITING_FOR_ADD_GENERATED = range(3, 5)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -55,14 +57,15 @@ I help you track cryptocurrency wallet balances across multiple blockchains.
 
 **Available Commands:**
 /start - Show this welcome message
-/add - Add a new wallet to track
+/generate - Generate a new wallet (BTC, ETH, BSC, or SOL)
+/add - Add an existing wallet to track
 /list - List all your tracked wallets
 /balance - Check balances of all wallets with {current_currency} values
 /remove - Remove a wallet from tracking
 /currency - Change your preferred currency (USD/CAD)
 /help - Show detailed help information
 
-Get started by adding your first wallet with /add!
+Get started by generating a new wallet with /generate or track an existing one with /add!
 """
     await update.message.reply_text(welcome_message)
 
@@ -76,7 +79,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 **Commands:**
 
-/add - Add a new wallet
+/generate - Generate a new wallet
+   • Select blockchain (BTC, ETH, BSC, or SOL)
+   • Receive mnemonic, address, and private key
+   • Optionally add to tracking automatically
+
+/add - Add an existing wallet
    • You'll be prompted to enter the wallet address
    • Select the blockchain (BTC, ETH, BSC, or SOL)
    • Optionally add a label
@@ -405,6 +413,232 @@ async def handle_remove_callback(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_text(f"❌ {result['message']}")
 
 
+async def generate_wallet_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Start the wallet generation conversation.
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton("Bitcoin (BTC)", callback_data='generate_BTC')
+        ],
+        [
+            InlineKeyboardButton("Ethereum (ETH)", callback_data='generate_ETH'),
+            InlineKeyboardButton("Binance Smart Chain (BSC)", callback_data='generate_BSC')
+        ],
+        [
+            InlineKeyboardButton("Solana (SOL)", callback_data='generate_SOL')
+        ],
+        [
+            InlineKeyboardButton("All Chains (Multi-Chain)", callback_data='generate_ALL')
+        ],
+        [
+            InlineKeyboardButton("Cancel", callback_data='cancel_generate')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        "🔐 **Wallet Generator**\n\n"
+        "Select which blockchain wallet(s) you want to generate:\n\n"
+        "⚠️ **IMPORTANT SECURITY WARNING:**\n"
+        "• Your mnemonic and private keys will be shown ONCE\n"
+        "• Write them down and store safely offline\n"
+        "• Never share your mnemonic or private keys\n"
+        "• Loss of mnemonic = loss of funds",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+    return WAITING_FOR_GENERATE_BLOCKCHAIN
+
+
+async def receive_generate_blockchain(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Receive blockchain selection and generate wallet(s).
+    """
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == 'cancel_generate':
+        await query.edit_message_text("Wallet generation cancelled.")
+        return ConversationHandler.END
+
+    selected_chain = query.data.replace('generate_', '')
+
+    # Show generating message
+    await query.edit_message_text("🔄 Generating secure wallet(s)... Please wait.")
+
+    try:
+        # Generate multi-chain wallet
+        wallet = generate_multi_chain_wallet(word_count=12, derivation_index=0)
+
+        # Prepare message based on selection
+        if selected_chain == 'ALL':
+            # Show all chains
+            message = "✅ **Multi-Chain Wallet Generated Successfully!**\n\n"
+            message += f"🔑 **Mnemonic (12 words):**\n`{wallet['mnemonic']}`\n\n"
+            message += "⚠️ **WRITE THIS DOWN AND STORE SAFELY!**\n\n"
+            message += "📍 **Your Addresses:**\n\n"
+
+            for chain, data in wallet['wallets'].items():
+                message += f"**{chain.upper()}:**\n"
+                message += f"Address: `{data['address']}`\n"
+                message += f"Path: `{data['derivationPath']}`\n\n"
+
+            message += "🔐 **Private Keys:**\n"
+            message += "⚠️ **EXTREMELY SENSITIVE - NEVER SHARE!**\n\n"
+
+            for chain, data in wallet['wallets'].items():
+                pk = data['privateKey']
+                # Show truncated for safety
+                message += f"{chain.upper()}: `{pk[:15]}...{pk[-15:]}`\n"
+
+            # Store full wallet info for potential adding to tracker
+            context.user_data['generated_wallet'] = {
+                'mnemonic': wallet['mnemonic'],
+                'wallets': wallet['wallets'],
+                'selected_chain': 'ALL'
+            }
+
+        else:
+            # Show single chain
+            chain_lower = selected_chain.lower()
+            chain_data = wallet['wallets'][chain_lower]
+
+            message = f"✅ **{selected_chain} Wallet Generated Successfully!**\n\n"
+            message += f"🔑 **Mnemonic (12 words):**\n`{wallet['mnemonic']}`\n\n"
+            message += "⚠️ **WRITE THIS DOWN AND STORE SAFELY!**\n\n"
+            message += f"📍 **{selected_chain} Address:**\n`{chain_data['address']}`\n\n"
+            message += f"🔐 **Private Key:**\n"
+            message += "⚠️ **NEVER SHARE THIS!**\n"
+
+            pk = chain_data['privateKey']
+            message += f"`{pk[:20]}...{pk[-20:]}`\n\n"
+            message += f"Derivation Path: `{chain_data['derivationPath']}`\n\n"
+
+            # Store wallet info for potential adding to tracker
+            context.user_data['generated_wallet'] = {
+                'mnemonic': wallet['mnemonic'],
+                'address': chain_data['address'],
+                'blockchain': selected_chain,
+                'private_key': chain_data['privateKey'],
+                'selected_chain': selected_chain
+            }
+
+        message += "\n" + "="*40 + "\n"
+        message += "📋 **Next Steps:**\n"
+        message += "1. Save your mnemonic in a safe place\n"
+        message += "2. Never share it with anyone\n"
+        message += "3. Add wallet(s) to tracking to monitor balance\n\n"
+
+        # Send the wallet information
+        await query.edit_message_text(message, parse_mode='Markdown')
+
+        # Ask if they want to add to tracking
+        if selected_chain != 'ALL':
+            keyboard = [
+                [InlineKeyboardButton("✅ Add to Tracking", callback_data='add_generated_yes')],
+                [InlineKeyboardButton("❌ No, Just Generate", callback_data='add_generated_no')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await query.message.reply_text(
+                "Would you like to add this wallet to your tracking list?",
+                reply_markup=reply_markup
+            )
+            return WAITING_FOR_ADD_GENERATED
+        else:
+            # For multi-chain, ask which one(s) to add
+            keyboard = []
+            for chain in ['BTC', 'ETH', 'BSC', 'SOL']:
+                keyboard.append([InlineKeyboardButton(f"Add {chain}", callback_data=f'add_multi_{chain}')])
+            keyboard.append([InlineKeyboardButton("Done", callback_data='add_generated_no')])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await query.message.reply_text(
+                "Select which wallet(s) you want to add to tracking:",
+                reply_markup=reply_markup
+            )
+            return WAITING_FOR_ADD_GENERATED
+
+    except Exception as e:
+        logger.error(f"Error generating wallet: {e}")
+        await query.edit_message_text(
+            f"❌ Error generating wallet: {str(e)}\n\n"
+            "Please try again with /generate"
+        )
+        return ConversationHandler.END
+
+
+async def receive_add_generated(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Handle adding generated wallet to tracking.
+    """
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == 'add_generated_no':
+        await query.edit_message_text(
+            "✅ Wallet generated! Remember to save your mnemonic safely.\n\n"
+            "You can always add the wallet to tracking later using /add"
+        )
+        context.user_data.clear()
+        return ConversationHandler.END
+
+    user_id = update.effective_user.id
+    generated_wallet = context.user_data.get('generated_wallet')
+
+    if not generated_wallet:
+        await query.edit_message_text("❌ Wallet information not found. Please generate a new wallet.")
+        return ConversationHandler.END
+
+    try:
+        # Handle multi-chain adds
+        if query.data.startswith('add_multi_'):
+            chain = query.data.replace('add_multi_', '')
+            chain_lower = chain.lower()
+
+            # Get the wallet data from context
+            wallet_data = generated_wallet['wallets'][chain_lower]
+            address = wallet_data['address']
+
+            # Add to tracker
+            label = f"Generated {chain} Wallet"
+            result = tracker.add_wallet(user_id, address, chain, label)
+
+            if result['success']:
+                await query.message.reply_text(f"✅ {chain} wallet added to tracking!")
+            else:
+                await query.message.reply_text(f"❌ Failed to add {chain} wallet: {result['message']}")
+
+            # Don't end conversation, allow adding more
+            return WAITING_FOR_ADD_GENERATED
+
+        # Handle single chain add
+        elif query.data == 'add_generated_yes':
+            address = generated_wallet['address']
+            blockchain = generated_wallet['blockchain']
+            label = f"Generated {blockchain} Wallet"
+
+            result = tracker.add_wallet(user_id, address, blockchain, label)
+
+            if result['success']:
+                await query.edit_message_text(
+                    f"✅ {result['message']}\n\n"
+                    "Use /balance to check your wallet balance!"
+                )
+            else:
+                await query.edit_message_text(f"❌ {result['message']}")
+
+            context.user_data.clear()
+            return ConversationHandler.END
+
+    except Exception as e:
+        logger.error(f"Error adding generated wallet: {e}")
+        await query.edit_message_text(f"❌ Error adding wallet: {str(e)}")
+        context.user_data.clear()
+        return ConversationHandler.END
+
+
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Handle errors in the bot.
@@ -430,10 +664,21 @@ def main() -> None:
         fallbacks=[CommandHandler('cancel', cancel)],
     )
 
+    # Add conversation handler for generating wallets
+    generate_wallet_conv = ConversationHandler(
+        entry_points=[CommandHandler('generate', generate_wallet_start)],
+        states={
+            WAITING_FOR_GENERATE_BLOCKCHAIN: [CallbackQueryHandler(receive_generate_blockchain, pattern='^generate_|^cancel_generate')],
+            WAITING_FOR_ADD_GENERATED: [CallbackQueryHandler(receive_add_generated, pattern='^add_generated_|^add_multi_')],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+    )
+
     # Add handlers
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('help', help_command))
     application.add_handler(CommandHandler('currency', currency_command))
+    application.add_handler(generate_wallet_conv)
     application.add_handler(add_wallet_conv)
     application.add_handler(CommandHandler('list', list_wallets))
     application.add_handler(CommandHandler('balance', check_balance))
