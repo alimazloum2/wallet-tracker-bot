@@ -533,12 +533,13 @@ async def confirm_ready_to_see_wallet(update: Update, context: ContextTypes.DEFA
                 message += f"Path: `{data['derivationPath']}`\n\n"
 
             message += "🔐 **Private Keys:**\n"
-            message += "⚠️ **EXTREMELY SENSITIVE - NEVER SHARE!**\n\n"
+            message += "⚠️ **EXTREMELY SENSITIVE - NEVER SHARE!**\n"
+            message += "⚠️ **You need these to import into wallet apps**\n\n"
 
             for chain, data in wallet['wallets'].items():
                 pk = data['privateKey']
-                # Show truncated for safety
-                message += f"{chain.upper()}: `{pk[:15]}...{pk[-15:]}`\n"
+                # Show FULL private key - user needs it to import wallet
+                message += f"**{chain.upper()}:**\n`{pk}`\n\n"
 
             # Store full wallet info for potential adding to tracker
             context.user_data['generated_wallet'] = {
@@ -558,10 +559,12 @@ async def confirm_ready_to_see_wallet(update: Update, context: ContextTypes.DEFA
             message += f"📍 **{selected_chain} Address:**\n`{chain_data['address']}`\n\n"
             message += f"🔐 **Private Key:**\n"
             message += "⚠️ **NEVER SHARE THIS!**\n"
+            message += "⚠️ **You need this to import into wallet apps**\n\n"
 
             pk = chain_data['privateKey']
-            message += f"`{pk[:20]}...{pk[-20:]}`\n\n"
-            message += f"Derivation Path: `{chain_data['derivationPath']}`\n\n"
+            # Show FULL private key - user needs it to import wallet
+            message += f"`{pk}`\n\n"
+            message += f"📂 Derivation Path: `{chain_data['derivationPath']}`\n\n"
 
             # Store wallet info for potential adding to tracker
             context.user_data['generated_wallet'] = {
