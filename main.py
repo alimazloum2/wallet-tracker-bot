@@ -594,9 +594,14 @@ async def confirm_ready_to_see_wallet(update: Update, context: ContextTypes.DEFA
         message += "📝 Copy the mnemonic to paper carefully\n"
         message += "✅ Double-check every word\n"
         message += "🔒 Store in a secure location\n\n"
+        message += "⏰ **This message will be deleted after you confirm!**\n"
 
         # Send the wallet information
-        await query.edit_message_text(message, parse_mode='Markdown')
+        wallet_msg = await query.edit_message_text(message, parse_mode='Markdown')
+
+        # Store message ID so we can delete it later
+        context.user_data['wallet_message_id'] = wallet_msg.message_id
+        context.user_data['chat_id'] = query.message.chat_id
 
         # Ask for written confirmation
         keyboard = [
@@ -605,7 +610,7 @@ async def confirm_ready_to_see_wallet(update: Update, context: ContextTypes.DEFA
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        await query.message.reply_text(
+        confirmation_msg = await query.message.reply_text(
             "⚠️ **IMPORTANT CONFIRMATION** ⚠️\n\n"
             "Have you written down your mnemonic on paper?\n\n"
             "**Before clicking 'I Have Written It Down':**\n"
@@ -613,10 +618,14 @@ async def confirm_ready_to_see_wallet(update: Update, context: ContextTypes.DEFA
             "✓ Check the spelling of each word\n"
             "✓ Check you wrote them in the correct order\n"
             "✓ Store the paper in a safe place\n\n"
-            "🔒 Once you confirm, we'll ask if you want to track this wallet.",
+            "🔒 **Once you confirm, the wallet info will be DELETED for security!**",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
+
+        # Store confirmation message ID too
+        context.user_data['confirmation_message_id'] = confirmation_msg.message_id
+
         return WAITING_FOR_WRITTEN_CONFIRMATION
 
     except Exception as e:
@@ -646,17 +655,36 @@ async def confirm_written_down(update: Update, context: ContextTypes.DEFAULT_TYP
             "When you're ready, use /generate to create a new wallet\n"
             "or /add to track an existing wallet."
         )
+        # Don't delete the wallet info - user needs more time
         context.user_data.clear()
         return ConversationHandler.END
 
-    # User confirmed they wrote it down
+    # User confirmed they wrote it down - DELETE SENSITIVE INFO!
     generated_wallet = context.user_data.get('generated_wallet')
     if not generated_wallet:
         await query.edit_message_text("❌ Session expired. Please use /generate again.")
         return ConversationHandler.END
 
+    # Delete the wallet information message for security
+    try:
+        wallet_message_id = context.user_data.get('wallet_message_id')
+        confirmation_message_id = context.user_data.get('confirmation_message_id')
+        chat_id = context.user_data.get('chat_id')
+
+        if wallet_message_id and chat_id:
+            await context.bot.delete_message(chat_id=chat_id, message_id=wallet_message_id)
+            logger.info(f"Deleted wallet info message {wallet_message_id} for security")
+
+        if confirmation_message_id and chat_id:
+            await context.bot.delete_message(chat_id=chat_id, message_id=confirmation_message_id)
+            logger.info(f"Deleted confirmation message {confirmation_message_id}")
+
+    except Exception as e:
+        logger.warning(f"Could not delete messages: {e}")
+
     selected_chain = generated_wallet.get('selected_chain')
 
+    # Send new message (can't edit deleted message)
     # Ask if they want to add to tracking
     if selected_chain != 'ALL':
         keyboard = [
@@ -665,7 +693,8 @@ async def confirm_written_down(update: Update, context: ContextTypes.DEFAULT_TYP
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        await query.edit_message_text(
+        await update.effective_chat.send_message(
+            "🗑️ **Wallet information deleted for security!**\n\n"
             "✅ **Great! Your mnemonic is safely written down.**\n\n"
             f"Would you like to add your {selected_chain} wallet to tracking?\n\n"
             "This will let you check the balance easily with /balance command.",
@@ -681,7 +710,8 @@ async def confirm_written_down(update: Update, context: ContextTypes.DEFAULT_TYP
         keyboard.append([InlineKeyboardButton("✅ Done - Don't Add Any", callback_data='add_generated_no')])
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        await query.edit_message_text(
+        await update.effective_chat.send_message(
+            "🗑️ **Wallet information deleted for security!**\n\n"
             "✅ **Great! Your mnemonic is safely written down.**\n\n"
             "Select which wallet(s) you want to add to tracking:\n"
             "(You can track them all or just some)",
