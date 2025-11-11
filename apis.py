@@ -504,18 +504,22 @@ def validate_address(address: str, blockchain: str) -> bool:
         return is_valid
     elif blockchain == 'BTC':
         # Bitcoin addresses can be:
-        # - Legacy (P2PKH): starts with '1', 26-35 characters
-        # - P2SH: starts with '3', 26-35 characters
+        # - Legacy (P2PKH): starts with '1', 26-34 characters
+        # - P2SH: starts with '3', 26-34 characters
         # - Bech32 (SegWit): starts with 'bc1', 42-62 characters
-        # All use Base58 (legacy/P2SH) or Bech32 encoding
         if address.startswith('bc1'):
-            # Bech32 addresses (lowercase, alphanumeric except '1', 'b', 'i', 'o')
-            bech32_chars = '023456789acdefghjklmnpqrstuvwxyz'
-            is_valid = 42 <= len(address) <= 62 and all(c in bech32_chars for c in address.lower())
+            # Bech32 addresses: starts with 'bc1', lowercase alphanumeric
+            # Valid bech32 charset: 0-9 and a-z (excluding 'b', 'i', 'o' in data part, but 'bc1' prefix is allowed)
+            is_valid = (
+                42 <= len(address) <= 62 and
+                address.islower() and
+                address[:3] == 'bc1' and
+                all(c in '0123456789abcdefghijklmnopqrstuvwxyz' for c in address)
+            )
         elif address.startswith('1') or address.startswith('3'):
-            # Legacy and P2SH addresses (Base58)
+            # Legacy and P2SH addresses (Base58: no 0, O, I, l to avoid confusion)
             base58_chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-            is_valid = 26 <= len(address) <= 35 and all(c in base58_chars for c in address)
+            is_valid = 26 <= len(address) <= 34 and all(c in base58_chars for c in address)
         else:
             is_valid = False
         logger.debug(f"BTC address validation result: {is_valid}")
