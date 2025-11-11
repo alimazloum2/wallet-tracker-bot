@@ -137,8 +137,8 @@ def get_eth_balance(address: str) -> Dict[str, any]:
 
 def get_bsc_balance(address: str) -> Dict[str, any]:
     """
-    Fetch Binance Smart Chain (BSC) balance from Ankr RPC endpoint.
-    Uses retry logic with exponential backoff and caching for reliability.
+    Fetch Binance Smart Chain (BSC) balance from RPC endpoints.
+    Uses retry logic with exponential backoff, multiple RPC providers, and caching for reliability.
 
     Args:
         address: BSC wallet address
@@ -157,8 +157,14 @@ def get_bsc_balance(address: str) -> Dict[str, any]:
     Raises:
         BlockchainAPIError: If the API request fails and no cached balance exists
     """
-    # Ankr RPC endpoint (free, no API key needed, more reliable than Etherscan V2)
-    ankr_rpc_url = "https://rpc.ankr.com/bsc"
+    # Multiple RPC endpoints for redundancy (free, no API key needed)
+    rpc_endpoints = [
+        "https://rpc.ankr.com/bsc",
+        "https://bsc-dataseed.binance.org/",
+        "https://bsc-dataseed1.defibit.io/",
+        "https://bsc-dataseed1.ninicoin.io/"
+    ]
+
     max_retries = 3
     retry_delays = [0, 2, 4]  # Exponential backoff: 0s, 2s, 4s
 
@@ -166,99 +172,128 @@ def get_bsc_balance(address: str) -> Dict[str, any]:
 
     print(f"\n{'='*60}")
     print(f"[BSC RPC DEBUG] Fetching balance for: {address}")
-    print(f"[BSC RPC DEBUG] Using Ankr RPC: {ankr_rpc_url}")
+    print(f"[BSC RPC DEBUG] Will try {len(rpc_endpoints)} RPC endpoints")
 
     logger.info(f"Fetching BSC balance for address: {address}")
 
-    for attempt in range(max_retries):
-        try:
-            if attempt > 0:
-                delay = retry_delays[attempt]
-                print(f"[BSC RPC DEBUG] Retry attempt {attempt + 1}/{max_retries} after {delay}s delay")
-                logger.info(f"Retrying BSC balance fetch (attempt {attempt + 1}/{max_retries}) after {delay}s")
-                time.sleep(delay)
+    # Try each RPC endpoint with retries
+    last_error = None
+    for rpc_idx, rpc_url in enumerate(rpc_endpoints):
+        print(f"[BSC RPC DEBUG] Trying endpoint {rpc_idx + 1}/{len(rpc_endpoints)}: {rpc_url}")
+        logger.info(f"Trying BSC RPC endpoint {rpc_idx + 1}/{len(rpc_endpoints)}: {rpc_url}")
 
-            # Method 1: Try Web3 library first
+        for attempt in range(max_retries):
             try:
-                w3 = Web3(Web3.HTTPProvider(ankr_rpc_url, request_kwargs={'timeout': 15}))
-                checksum_address = Web3.to_checksum_address(address)
-                balance_wei = w3.eth.get_balance(checksum_address)
-                print(f"[BSC RPC DEBUG] Web3 method succeeded")
-            except Exception as web3_error:
-                # Method 2: Fallback to direct JSON-RPC call (more reliable on Windows)
-                print(f"[BSC RPC DEBUG] Web3 failed ({web3_error}), trying direct JSON-RPC...")
-                logger.warning(f"Web3 failed, using direct JSON-RPC: {web3_error}")
+                if attempt > 0:
+                    delay = retry_delays[attempt]
+                    print(f"[BSC RPC DEBUG] Retry attempt {attempt + 1}/{max_retries} after {delay}s delay")
+                    logger.info(f"Retrying BSC balance fetch (attempt {attempt + 1}/{max_retries}) after {delay}s")
+                    time.sleep(delay)
 
-                payload = {
-                    "jsonrpc": "2.0",
-                    "method": "eth_getBalance",
-                    "params": [address, "latest"],
-                    "id": 1
+                # Method 1: Try Web3 library first
+                web3_error = None
+                try:
+                    print(f"[BSC RPC DEBUG] Trying Web3 method...")
+                    w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={'timeout': 15}))
+                    checksum_address = Web3.to_checksum_address(address)
+                    balance_wei = w3.eth.get_balance(checksum_address)
+                    print(f"[BSC RPC DEBUG] ✓ Web3 method succeeded with {rpc_url}")
+                except Exception as e:
+                    web3_error = e
+                    print(f"[BSC RPC DEBUG] ✗ Web3 failed: {type(e).__name__}: {str(e)}")
+                    logger.warning(f"Web3 failed with {rpc_url}: {e}")
+
+                    # Method 2: Fallback to direct JSON-RPC call (more reliable on Windows)
+                    print(f"[BSC RPC DEBUG] Trying direct JSON-RPC method...")
+
+                    payload = {
+                        "jsonrpc": "2.0",
+                        "method": "eth_getBalance",
+                        "params": [address, "latest"],
+                        "id": 1
+                    }
+
+                    print(f"[BSC RPC DEBUG] Sending POST to {rpc_url}")
+                    print(f"[BSC RPC DEBUG] Payload: {payload}")
+
+                    response = requests.post(rpc_url, json=payload, timeout=15)
+
+                    print(f"[BSC RPC DEBUG] Response status: {response.status_code}")
+                    print(f"[BSC RPC DEBUG] Response text: {response.text[:200]}")
+
+                    response.raise_for_status()
+
+                    data = response.json()
+
+                    if 'error' in data:
+                        error_detail = data['error']
+                        print(f"[BSC RPC DEBUG] ✗ RPC returned error: {error_detail}")
+                        raise BlockchainAPIError(f"RPC error: {error_detail}")
+
+                    if 'result' not in data:
+                        print(f"[BSC RPC DEBUG] ✗ Unexpected response format: {data}")
+                        raise BlockchainAPIError(f"Unexpected response: {data}")
+
+                    # Convert hex to int
+                    balance_wei = int(data['result'], 16)
+                    print(f"[BSC RPC DEBUG] ✓ Direct JSON-RPC method succeeded with {rpc_url}")
+
+                balance_bnb = float(balance_wei) / 1e18
+
+                print(f"[BSC RPC SUCCESS] Balance: {balance_bnb} BNB ({balance_wei} wei)")
+                print(f"[BSC RPC SUCCESS] Used endpoint: {rpc_url}")
+                print(f"{'='*60}\n")
+
+                logger.info(f"Successfully fetched BSC balance: {balance_bnb} BNB for {address}")
+
+                # Cache the successful result
+                result = {
+                    'balance': balance_bnb,
+                    'balance_wei': str(balance_wei),
+                    'address': address,
+                    'blockchain': 'BSC',
+                    'status': 'success',
+                    'last_updated': datetime.now()
                 }
 
-                response = requests.post(ankr_rpc_url, json=payload, timeout=15)
-                response.raise_for_status()
+                balance_cache[cache_key] = result.copy()
 
-                data = response.json()
+                return result
 
-                if 'error' in data:
-                    raise BlockchainAPIError(f"RPC error: {data['error']}")
+            except Exception as e:
+                last_error = e
+                error_msg = f"Endpoint {rpc_idx + 1}/{len(rpc_endpoints)}, Attempt {attempt + 1}/{max_retries} failed"
+                error_detail = f"{type(e).__name__}: {str(e)}"
+                print(f"[BSC RPC ERROR] {error_msg}")
+                print(f"[BSC RPC ERROR] Error detail: {error_detail}")
+                logger.warning(f"{error_msg}: {error_detail}")
 
-                if 'result' not in data:
-                    raise BlockchainAPIError(f"Unexpected response: {data}")
+                # If this is the last attempt with this endpoint, move to next endpoint
+                if attempt == max_retries - 1:
+                    print(f"[BSC RPC ERROR] All retries exhausted for {rpc_url}")
+                    break  # Try next RPC endpoint
+                # Otherwise continue retrying with same endpoint
 
-                # Convert hex to int
-                balance_wei = int(data['result'], 16)
-                print(f"[BSC RPC DEBUG] Direct JSON-RPC method succeeded")
+    # All RPC endpoints failed, try to use cached balance
+    print(f"[BSC RPC ERROR] All {len(rpc_endpoints)} RPC endpoints failed")
+    if cache_key in balance_cache:
+        cached = balance_cache[cache_key]
+        print(f"[BSC RPC WARNING] Using cached balance from {cached['last_updated']}")
+        logger.warning(f"Using cached BSC balance for {address} from {cached['last_updated']}")
 
-            balance_bnb = float(balance_wei) / 1e18
+        cached_result = cached.copy()
+        cached_result['status'] = 'cached'
+        print(f"[BSC RPC CACHED] Balance: {cached_result['balance']} BNB (cached)")
+        print(f"{'='*60}\n")
 
-            print(f"[BSC RPC SUCCESS] Balance: {balance_bnb} BNB ({balance_wei} wei)")
-            print(f"{'='*60}\n")
-
-            logger.info(f"Successfully fetched BSC balance: {balance_bnb} BNB for {address}")
-
-            # Cache the successful result
-            result = {
-                'balance': balance_bnb,
-                'balance_wei': str(balance_wei),
-                'address': address,
-                'blockchain': 'BSC',
-                'status': 'success',
-                'last_updated': datetime.now()
-            }
-
-            balance_cache[cache_key] = result.copy()
-
-            return result
-
-        except Exception as e:
-            error_msg = f"Attempt {attempt + 1}/{max_retries} failed: {str(e)}"
-            print(f"[BSC RPC ERROR] {error_msg}")
-            logger.warning(error_msg)
-
-            # If this is the last attempt, try to use cached balance
-            if attempt == max_retries - 1:
-                if cache_key in balance_cache:
-                    cached = balance_cache[cache_key]
-                    print(f"[BSC RPC WARNING] Using cached balance from {cached['last_updated']}")
-                    logger.warning(f"Using cached BSC balance for {address} from {cached['last_updated']}")
-
-                    cached_result = cached.copy()
-                    cached_result['status'] = 'cached'
-                    print(f"[BSC RPC CACHED] Balance: {cached_result['balance']} BNB (cached)")
-                    print(f"{'='*60}\n")
-
-                    return cached_result
-                else:
-                    # No cache available, raise error
-                    print(f"[BSC RPC ERROR] All retries failed, no cached balance available")
-                    print(f"{'='*60}\n")
-                    logger.error(f"Failed to fetch BSC balance after {max_retries} attempts: {e}")
-                    raise BlockchainAPIError(f"Failed to fetch BSC balance after {max_retries} retries: {str(e)}")
-
-    # Should never reach here, but just in case
-    raise BlockchainAPIError("Failed to fetch BSC balance: unexpected error")
+        return cached_result
+    else:
+        # No cache available, raise error
+        print(f"[BSC RPC ERROR] No cached balance available")
+        print(f"[BSC RPC ERROR] Last error: {type(last_error).__name__}: {str(last_error)}")
+        print(f"{'='*60}\n")
+        logger.error(f"Failed to fetch BSC balance after trying {len(rpc_endpoints)} endpoints: {last_error}")
+        raise BlockchainAPIError(f"Failed to fetch BSC balance from all RPC endpoints. Last error: {str(last_error)}")
 
 
 def get_sol_balance(address: str) -> Dict[str, any]:
