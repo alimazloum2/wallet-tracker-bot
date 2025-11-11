@@ -133,11 +133,11 @@ python test_wallet_generator.py
 - 256 bits of cryptographic entropy
 - Standard English wordlist
 
-**BIP44 Derivation Paths:**
+**BIP44/BIP84 Derivation Paths:**
 - ETH: `m/44'/60'/0'/0/0`
 - BSC: `m/44'/60'/0'/0/0` (EVM compatible)
 - SOL: `m/44'/501'/0'/0'`
-- BTC: `m/44'/0'/0'/0/0`
+- BTC: `m/84'/0'/0'/0/0` (Native SegWit)
 
 **Multiple Wallets:**
 Generate multiple accounts from same mnemonic using different derivation indices:
@@ -158,7 +158,7 @@ wallet3 = generate_multi_chain_wallet(derivation_index=2)
 
 - **ETH/BSC**: `0x` prefixed hex addresses (42 characters)
 - **SOL**: Base58 encoded addresses (32-44 characters)
-- **BTC**: Legacy P2PKH addresses starting with `1` (26-34 characters)
+- **BTC**: Native SegWit (Bech32) addresses starting with `bc1` (42-62 characters)
 
 ## Project Structure
 

@@ -37,13 +37,78 @@ DERIVATION_PATHS = {
     'ETH': "m/44'/60'/0'/0/0",
     'BSC': "m/44'/60'/0'/0/0",  # Same as ETH (EVM compatible)
     'SOL': "m/44'/501'/0'/0'",
-    'BTC': "m/44'/0'/0'/0/0"
+    'BTC': "m/84'/0'/0'/0/0"  # Native SegWit (Bech32) - modern standard
 }
 
 
 class WalletGeneratorError(Exception):
     """Custom exception for wallet generation errors."""
     pass
+
+
+def bech32_encode(hrp: str, witver: int, witprog: bytes) -> str:
+    """
+    Encode a SegWit address using Bech32 encoding.
+
+    Args:
+        hrp: Human-readable part ('bc' for mainnet, 'tb' for testnet)
+        witver: Witness version (0 for P2WPKH/P2WSH)
+        witprog: Witness program (pubkey hash or script hash)
+
+    Returns:
+        Bech32-encoded address
+    """
+    # Bech32 charset
+    CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+
+    def bech32_polymod(values):
+        """Compute Bech32 checksum."""
+        GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]
+        chk = 1
+        for value in values:
+            b = chk >> 25
+            chk = (chk & 0x1ffffff) << 5 ^ value
+            for i in range(5):
+                chk ^= GEN[i] if ((b >> i) & 1) else 0
+        return chk
+
+    def bech32_hrp_expand(hrp):
+        """Expand HRP for checksum computation."""
+        return [ord(x) >> 5 for x in hrp] + [0] + [ord(x) & 31 for x in hrp]
+
+    def bech32_create_checksum(hrp, data):
+        """Create checksum for Bech32 string."""
+        values = bech32_hrp_expand(hrp) + data
+        polymod = bech32_polymod(values + [0, 0, 0, 0, 0, 0]) ^ 1
+        return [(polymod >> 5 * (5 - i)) & 31 for i in range(6)]
+
+    def convertbits(data, frombits, tobits, pad=True):
+        """Convert between bit groups."""
+        acc = 0
+        bits = 0
+        ret = []
+        maxv = (1 << tobits) - 1
+        max_acc = (1 << (frombits + tobits - 1)) - 1
+        for value in data:
+            acc = ((acc << frombits) | value) & max_acc
+            bits += frombits
+            while bits >= tobits:
+                bits -= tobits
+                ret.append((acc >> bits) & maxv)
+        if pad:
+            if bits:
+                ret.append((acc << (tobits - bits)) & maxv)
+        return ret
+
+    # Convert witness program to 5-bit groups
+    data = [witver] + convertbits(witprog, 8, 5)
+
+    # Create checksum
+    checksum = bech32_create_checksum(hrp, data)
+
+    # Combine and encode
+    combined = data + checksum
+    return hrp + '1' + ''.join([CHARSET[d] for d in combined])
 
 
 def _derive_key_from_path(seed: bytes, path: str) -> bytes:
@@ -197,7 +262,7 @@ def generate_sol_wallet(seed: bytes, derivation_index: int = 0) -> Dict[str, str
 def generate_btc_wallet(seed: bytes, derivation_index: int = 0) -> Dict[str, str]:
     """
     Generate Bitcoin wallet from seed.
-    Creates Legacy (P2PKH) address starting with '1'.
+    Creates Native SegWit (Bech32) address starting with 'bc1'.
 
     Args:
         seed: BIP39 seed bytes
@@ -208,10 +273,11 @@ def generate_btc_wallet(seed: bytes, derivation_index: int = 0) -> Dict[str, str
     """
     import hashlib
 
-    path = f"m/44'/0'/0'/0/{derivation_index}"
+    # Use Native SegWit derivation path (BIP84)
+    path = f"m/84'/0'/0'/0/{derivation_index}"
     private_key_bytes = _derive_key_from_path(seed, path)
 
-    # Create Bitcoin address (Legacy P2PKH format)
+    # Create Bitcoin Native SegWit address (Bech32 format)
     # 1. Get public key from private key using secp256k1
     from coincurve import PublicKey
     public_key = PublicKey.from_secret(private_key_bytes).format(compressed=True)
@@ -220,16 +286,15 @@ def generate_btc_wallet(seed: bytes, derivation_index: int = 0) -> Dict[str, str
     sha256_hash = hashlib.sha256(public_key).digest()
 
     # 3. RIPEMD160 hash
-    ripemd160_hash = hashlib.new('ripemd160', sha256_hash).digest()
+    pubkey_hash = hashlib.new('ripemd160', sha256_hash).digest()
 
-    # 4. Add version byte (0x00 for mainnet)
-    versioned_hash = b'\x00' + ripemd160_hash
+    # 4. Create Bech32 address (Native SegWit)
+    # Convert hash to 5-bit groups for bech32 encoding
+    witver = 0  # Witness version 0 for P2WPKH
+    witprog = pubkey_hash
 
-    # 5. Double SHA256 for checksum
-    checksum = hashlib.sha256(hashlib.sha256(versioned_hash).digest()).digest()[:4]
-
-    # 6. Add checksum and encode to base58
-    address = base58.b58encode(versioned_hash + checksum).decode('utf-8')
+    # Bech32 encode
+    address = bech32_encode('bc', witver, witprog)
 
     # Convert private key to hex format (64 characters)
     private_key_hex = private_key_bytes.hex()
