@@ -6,7 +6,7 @@ A Telegram bot for tracking cryptocurrency wallet balances across multiple block
 
 - **Bitcoin (BTC)** - via BlockCypher API (no API key needed)
 - **Ethereum (ETH)** - via Etherscan API
-- **Binance Smart Chain (BSC)** - via BSCScan API
+- **Binance Smart Chain (BSC)** - via Ankr RPC endpoint (no API key needed, with retry logic)
 - **Solana (SOL)** - via Solana RPC & Solscan API
 
 ## Features
@@ -18,6 +18,8 @@ A Telegram bot for tracking cryptocurrency wallet balances across multiple block
 - ✅ User-friendly Telegram interface
 - ✅ Multi-user support
 - ✅ Persistent wallet storage
+- ✅ **Retry logic with exponential backoff** for BSC (3 attempts: 0s, 2s, 4s delays)
+- ✅ **Balance caching** - shows last known balance if API fails
 
 ## Installation
 
@@ -38,11 +40,13 @@ Create a `.env` file in the project root:
 ```bash
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 ETHERSCAN_API_KEY=your_etherscan_api_key
-BSCSCAN_API_KEY=your_bscscan_api_key
+BSCSCAN_API_KEY=your_bscscan_api_key  # OPTIONAL - not needed anymore
 SOLSCAN_API_KEY=your_solscan_api_key
 ```
 
-**Note:** Bitcoin doesn't require an API key!
+**Note:**
+- **Bitcoin** uses BlockCypher API - no API key needed!
+- **BSC** now uses Ankr RPC endpoint - no API key needed!
 
 ### 4. Run the bot
 ```bash
@@ -63,11 +67,12 @@ python main.py
 3. Go to API-KEYs section
 4. Create a new API key
 
-### BSCScan API Key
-1. Go to [bscscan.com](https://bscscan.com/)
-2. Create an account
-3. Go to API-KEYs section
-4. Create a new API key
+### BSCScan API Key (Not Required)
+**No longer needed!** BSC now uses Ankr RPC endpoint which is free and doesn't require an API key.
+
+BSCScan deprecated their V2 API, so we switched to a more reliable Ankr RPC endpoint with:
+- 3 retry attempts with exponential backoff (0s, 2s, 4s)
+- Balance caching for reliability
 
 ### Solscan API Key (Optional)
 1. Go to [solscan.io](https://solscan.io/)

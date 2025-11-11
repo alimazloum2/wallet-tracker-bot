@@ -97,9 +97,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 /help - Show this help message
 
 **Supported Blockchains:**
-• Bitcoin (BTC) - via BlockCypher
+• Bitcoin (BTC) - via BlockCypher (no API key needed)
 • Ethereum (ETH) - via Etherscan
-• Binance Smart Chain (BSC) - via BSCScan
+• Binance Smart Chain (BSC) - via Ankr RPC (no API key needed)
 • Solana (SOL) - via Solscan
 
 **Tips:**

@@ -18,12 +18,12 @@ class Config:
 
     # Blockchain API Keys
     ETHERSCAN_API_KEY = os.getenv('ETHERSCAN_API_KEY', '')
-    BSCSCAN_API_KEY = os.getenv('BSCSCAN_API_KEY', '')
+    BSCSCAN_API_KEY = os.getenv('BSCSCAN_API_KEY', '')  # Deprecated - BSC now uses Ankr RPC
     SOLSCAN_API_KEY = os.getenv('SOLSCAN_API_KEY', '')
 
     # API URLs
     ETHERSCAN_API_URL = 'https://api.etherscan.io/v2/api'
-    BSCSCAN_API_URL = 'https://api.bscscan.com/v2/api'
+    BSCSCAN_API_URL = 'https://api.bscscan.com/v2/api'  # Deprecated - BSC now uses Ankr RPC (https://rpc.ankr.com/bsc)
     SOLSCAN_API_URL = 'https://public-api.solscan.io'
 
     @classmethod
