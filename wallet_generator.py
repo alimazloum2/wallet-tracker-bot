@@ -255,6 +255,9 @@ def generate_btc_wallet(seed: bytes, derivation_index: int = 0) -> Dict[str, str
     # 6. Add checksum and encode to base58
     address = base58.b58encode(versioned_hash + checksum).decode('utf-8')
 
+    # Convert private key to hex format (64 characters)
+    private_key_hex = private_key_bytes.hex()
+
     # Convert private key to WIF (Wallet Import Format)
     extended_key = b'\x80' + private_key_bytes + b'\x01'  # 0x80 = mainnet, 0x01 = compressed
     wif_checksum = hashlib.sha256(hashlib.sha256(extended_key).digest()).digest()[:4]
@@ -264,7 +267,8 @@ def generate_btc_wallet(seed: bytes, derivation_index: int = 0) -> Dict[str, str
 
     return {
         'address': address,
-        'privateKey': wif,  # WIF format
+        'privateKey': wif,  # WIF format (most common)
+        'privateKeyHex': private_key_hex,  # Hex format (alternative)
         'derivationPath': path
     }
 

@@ -539,7 +539,14 @@ async def confirm_ready_to_see_wallet(update: Update, context: ContextTypes.DEFA
             for chain, data in wallet['wallets'].items():
                 pk = data['privateKey']
                 # Show FULL private key - user needs it to import wallet
-                message += f"**{chain.upper()}:**\n`{pk}`\n\n"
+                message += f"**{chain.upper()}:**\n"
+
+                # For Bitcoin, show both formats
+                if chain == 'btc' and 'privateKeyHex' in data:
+                    message += f"WIF: `{pk}`\n"
+                    message += f"Hex: `{data['privateKeyHex']}`\n\n"
+                else:
+                    message += f"`{pk}`\n\n"
 
             # Store full wallet info for potential adding to tracker
             context.user_data['generated_wallet'] = {
@@ -563,7 +570,14 @@ async def confirm_ready_to_see_wallet(update: Update, context: ContextTypes.DEFA
 
             pk = chain_data['privateKey']
             # Show FULL private key - user needs it to import wallet
-            message += f"`{pk}`\n\n"
+
+            # For Bitcoin, show both WIF and Hex formats
+            if selected_chain == 'BTC' and 'privateKeyHex' in chain_data:
+                message += f"**WIF Format** (most wallets):\n`{pk}`\n\n"
+                message += f"**Hex Format** (alternative):\n`{chain_data['privateKeyHex']}`\n\n"
+            else:
+                message += f"`{pk}`\n\n"
+
             message += f"📂 Derivation Path: `{chain_data['derivationPath']}`\n\n"
 
             # Store wallet info for potential adding to tracker
