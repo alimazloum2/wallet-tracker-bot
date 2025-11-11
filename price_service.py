@@ -5,6 +5,7 @@ Uses CoinGecko API (free, no API key required).
 
 import requests
 import logging
+import time
 from typing import Dict, Optional
 
 # Configure logging
@@ -29,10 +30,15 @@ COINGECKO_IDS = {
     'BTC': 'bitcoin'
 }
 
+# Price cache to avoid rate limiting (cache for 60 seconds)
+_price_cache = {}
+_cache_timestamp = 0
+CACHE_DURATION = 60  # seconds
+
 
 def get_crypto_prices(currencies: list = ['usd', 'cad']) -> Dict[str, Dict[str, float]]:
     """
-    Fetch cryptocurrency prices from CoinGecko API.
+    Fetch cryptocurrency prices from CoinGecko API with caching.
 
     Args:
         currencies: List of fiat currencies to fetch prices in (default: ['usd', 'cad'])
@@ -49,6 +55,14 @@ def get_crypto_prices(currencies: list = ['usd', 'cad']) -> Dict[str, Dict[str, 
     Raises:
         PriceServiceError: If the API request fails
     """
+    global _price_cache, _cache_timestamp
+
+    # Check if cache is still valid
+    current_time = time.time()
+    if _price_cache and (current_time - _cache_timestamp) < CACHE_DURATION:
+        logger.info(f"Using cached prices (age: {int(current_time - _cache_timestamp)}s)")
+        return _price_cache
+
     try:
         # CoinGecko API endpoint (free, no API key needed)
         url = 'https://api.coingecko.com/api/v3/simple/price'
@@ -76,13 +90,26 @@ def get_crypto_prices(currencies: list = ['usd', 'cad']) -> Dict[str, Dict[str, 
                 prices[symbol] = data[coingecko_id]
 
         logger.info(f"Successfully fetched prices: {prices}")
+
+        # Update cache
+        _price_cache = prices
+        _cache_timestamp = current_time
+
         return prices
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error fetching crypto prices: {e}")
+        # Return cached prices if available, even if expired
+        if _price_cache:
+            logger.warning("Using expired cache due to API error")
+            return _price_cache
         raise PriceServiceError(f"Failed to fetch prices: {str(e)}")
     except (ValueError, KeyError) as e:
         logger.error(f"Error parsing price response: {e}")
+        # Return cached prices if available
+        if _price_cache:
+            logger.warning("Using cached prices due to parse error")
+            return _price_cache
         raise PriceServiceError(f"Failed to parse prices: {str(e)}")
 
 
