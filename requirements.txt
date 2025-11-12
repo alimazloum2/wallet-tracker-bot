@@ -9,5 +9,5 @@ mnemonic==0.20
 eth-account==0.11.0
 solders==0.18.1
 base58==2.1.1
-coincurve==19.0.1
+coincurve==18.0.0
 bip32==3.4
