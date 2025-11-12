@@ -1,9 +1,8 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Distribution / packaging
+*.so
 .Python
 build/
 develop-eggs/
@@ -21,15 +20,15 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
+# Virtual Environment
 venv/
 env/
 ENV/
-.venv
+env.bak/
+venv.bak/
 
 # Environment variables
 .env
-.env.local
 
 # IDE
 .vscode/
@@ -42,13 +41,15 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Project specific
-wallets.json
+# Logs
 *.log
 
-# Wallet generation - NEVER commit these!
-**/test_wallets*.json
-**/generated_wallets*.json
-**/mnemonic*.txt
-**/private_keys*.txt
-**/*_PRIVATE_*
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
