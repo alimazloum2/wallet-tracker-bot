@@ -52,17 +52,12 @@ git clone https://github.com/alimazloum2/wallet-tracker-bot.git
 cd wallet-tracker-bot
 ```
 
-### 2️⃣ Checkout the Latest Branch
-```bash
-git checkout claude/complete-fix-with-all-files-011CV35MZgyhkd1fp1R4T1rQ
-```
-
-### 3️⃣ Install Dependencies
+### 2️⃣ Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4️⃣ Configure Environment Variables
+### 3️⃣ Configure Environment Variables
 Copy the example environment file:
 ```bash
 cp .env.example .env
@@ -77,7 +72,7 @@ SOLSCAN_API_KEY=your_solscan_api_key  # Optional
 
 **Note:** BSC and BTC don't require API keys! 🎉
 
-### 5️⃣ Run the Bot
+### 4️⃣ Run the Bot
 ```bash
 python main.py
 ```
@@ -331,4 +326,4 @@ This software is provided "as is", without warranty of any kind. Use at your own
 
 ---
 
-Made with ❤️ by the crypto community
+**Built with passion for the crypto community** 🚀
