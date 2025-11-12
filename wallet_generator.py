@@ -222,9 +222,61 @@ def generate_bsc_wallet(seed: bytes, derivation_index: int = 0) -> Dict[str, str
     return wallet
 
 
+def _derive_ed25519_key_slip0010(seed: bytes, path: str) -> bytes:
+    """
+    Derive ED25519 key using SLIP-0010 standard (for Solana).
+    This matches how Phantom, Solflare, and other standard Solana wallets derive keys.
+
+    Args:
+        seed: BIP39 seed bytes
+        path: Derivation path (e.g., "m/44'/501'/0'/0'")
+
+    Returns:
+        32-byte ED25519 private key
+    """
+    # Parse the derivation path
+    if not path.startswith('m/'):
+        raise ValueError("Path must start with 'm/'")
+
+    path_parts = path[2:].split('/')
+
+    # Master key generation (SLIP-0010 for ED25519)
+    master_key = hmac.new(b"ed25519 seed", seed, hashlib.sha512).digest()
+    master_secret = master_key[:32]
+    master_chain_code = master_key[32:]
+
+    # Derive child keys
+    key = master_secret
+    chain_code = master_chain_code
+
+    for part in path_parts:
+        if not part:
+            continue
+
+        # ED25519 requires hardened derivation (with ')
+        if not part.endswith("'"):
+            raise ValueError("Solana ED25519 derivation requires all hardened paths")
+
+        # Remove the ' and parse index
+        index = int(part[:-1])
+
+        # Hardened key: index + 2^31
+        hardened_index = index + 0x80000000
+
+        # SLIP-0010: I = HMAC-SHA512(Key = c_par, Data = 0x00 || k_par || index)
+        data = b'\x00' + key + hardened_index.to_bytes(4, 'big')
+        I = hmac.new(chain_code, data, hashlib.sha512).digest()
+
+        key = I[:32]
+        chain_code = I[32:]
+
+    return key
+
+
 def generate_sol_wallet(seed: bytes, derivation_index: int = 0) -> Dict[str, str]:
     """
-    Generate Solana wallet from seed.
+    Generate Solana wallet from seed using proper ED25519 derivation.
+    Compatible with Phantom, Solflare, and other standard Solana wallets.
 
     Args:
         seed: BIP39 seed bytes
@@ -233,24 +285,24 @@ def generate_sol_wallet(seed: bytes, derivation_index: int = 0) -> Dict[str, str
     Returns:
         Dictionary with address and private key
     """
-    # Solana uses different derivation path
-    # Note: Solana's derivation is slightly different from standard BIP44
-    # For compatibility, we derive a key and use it directly
-
+    # Solana standard derivation path (all hardened)
     path = f"m/44'/501'/{derivation_index}'/0'"
-    private_key_bytes = _derive_key_from_path(seed, path)
 
-    # Create Solana keypair from seed
-    keypair = Keypair.from_seed(private_key_bytes[:32])
+    # Use SLIP-0010 derivation for ED25519 (matches Phantom/Solflare)
+    private_key_bytes = _derive_ed25519_key_slip0010(seed, path)
+
+    # Create Solana keypair from the derived private key
+    keypair = Keypair.from_seed(private_key_bytes)
 
     # Get public key (address)
     address = str(keypair.pubkey())
 
     # Get private key in base58 format (standard for Solana)
-    private_key_bytes_full = bytes(keypair)  # Returns 64 bytes (32 private + 32 public)
+    # This is the 64-byte keypair (32 private + 32 public) encoded as base58
+    private_key_bytes_full = bytes(keypair)
     private_key_base58 = base58.b58encode(private_key_bytes_full).decode('utf-8')
 
-    logger.info(f"Generated SOL wallet: {address}")
+    logger.info(f"Generated SOL wallet with SLIP-0010: {address}")
 
     return {
         'address': address,
